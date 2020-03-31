@@ -9,7 +9,7 @@
 removed it will be sufficiently stable for usage.**
 
 A [PyTorch](https://pytorch.org/) library for video-based computer vision tasks. `torchvideo` provides
-dataset loaders specialised for video, video frame samplers, and transformations specifically for video.
+dataset loaders specialised for video, video frame samplers, and transformations specifically for video.  This version implements a reader using torchvision.io rather than lintel.
 
 ## Get started
 
