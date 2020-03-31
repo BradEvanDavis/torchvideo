@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Union, List, Iterator, IO
 
 from PIL import Image
-
+import torchvision
 from torchvideo.samplers import frame_idx_to_list
 
 _LOG = logging.getLogger(__name__)
@@ -27,48 +27,46 @@ _VIDEO_FILE_EXTENSIONS = {
 }
 
 
-def lintel_loader(
-    file: Union[str, Path, IO[bytes]], frames_idx: Union[slice, List[slice], List[int]]
-) -> Iterator[Image.Image]:
-    import lintel
+def lintel_loader(file, frames_idx):
+    # import lintel
 
-    if isinstance(file, str):
-        file = Path(file)
-    if isinstance(file, Path):
-        _LOG.debug("Loading data from {}".format(file))
-        with file.open("rb") as f:
-            video = f.read()
-    else:
-        video = file.read()
+    # if isinstance(file, str):
+    #     file = Path(file)
+    # if isinstance(file, Path):
+    #     _LOG.debug("Loading data from {}".format(file))
+    #     with file.open("rb") as f:
+    #         video = f.read()
+    # else:
+    #     video = file.read()
 
     frames_idx = np.array(frame_idx_to_list(frames_idx))
     assert isinstance(frames_idx, np.ndarray)
     load_idx, reconstruction_idx = np.unique(frames_idx, return_inverse=True)
-    _LOG.debug("Converted frames_idx {} to load_idx {}".format(frames_idx, load_idx))
-    frames_data, width, height = lintel.loadvid_frame_nums(
-        video, frame_nums=load_idx, should_seek=False
-    )
-    frames = np.frombuffer(frames_data, dtype=np.uint8)
+    # _LOG.debug("Converted frames_idx {} to load_idx {}".format(frames_idx, load_idx))
+    # frames_data, width, height = lintel.loadvid_frame_nums(
+    #     video, frame_nums=load_idx, should_seek=False )
+
+    frames, aframes, info = torchvision.io.read_video(str(file))
+    num_frames, width, height = frames.shape[0], frames.shape[2], frames.shape[1]
+    frames = np.frombuffer(frames.numpy(), dtype=np.uint8)
     # TODO: Support 1 channel grayscale video
-    frames = np.reshape(frames, newshape=(len(load_idx), height, width, 3))
+    frames = np.reshape(frames, newshape=(num_frames, height, width, 3))
     frames = frames[reconstruction_idx]
     return (Image.fromarray(frame) for frame in frames)
 
 
-def default_loader(
-    file: Union[str, Path, IO[bytes]], frames_idx: Union[slice, List[slice], List[int]]
-) -> Iterator[Image.Image]:
-    from torchvideo import get_video_backend
-
-    backend = get_video_backend()
-    if backend == "lintel":
-        loader = lintel_loader
-    else:
-        raise ValueError("Unknown backend '{}'".format(backend))
-    return loader(file, frames_idx)
+def default_loader(file, frames_idx):
+    # from torchvideo import get_video_backend
+    #
+    # backend = get_video_backend()
+    # if backend == "lintel":
+    #     loader = lintel_loader
+    # else:
+    #     raise ValueError("Unknown backend '{}'".format(backend))
+    return lintel_loader(file, frames_idx)
 
 
-def _get_videofile_frame_count(video_file_path: Path) -> int:
+def _get_videofile_frame_count(video_file_path):
     command = [
         "ffprobe",
         "-v",
@@ -89,6 +87,6 @@ def _get_videofile_frame_count(video_file_path: Path) -> int:
     return n_frames
 
 
-def _is_video_file(path: Path) -> bool:
+def _is_video_file(path):
     extension = path.name.lower().split(".")[-1]
     return extension in _VIDEO_FILE_EXTENSIONS
